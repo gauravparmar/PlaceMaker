@@ -1,0 +1,47 @@
+* Source
+http://professionnels.ign.fr/sites/default/files/FR_DOM_Mayotte_shp_WGS84.zip
+
+=> fichier departement.shp
+
+* Montée en base avec OGR
+set GDAL_DATA=C:\ms4w\gdaldata
+ 
+"C:\Program Files (x86)\FWTools2.4.7\bin\ogr2ogr.exe"
+-f PostgreSQL PG:"host=xxxxxx dbname=xxxxx user=xxxxxx password=xxxxx"
+-t_srs EPSG:4326 
+-overwrite 
+-nlt MULTIPOLYGON 
+-nln tous_departements 
+c:\labs\opendata\geofla\departement.shp
+
+* Modification du format du champ code_dept
+
+ALTER TABLE tous_departements ALTER COLUMN code_dept TYPE character varying(3);
+
+* Modification du code dept pour les DOM
+
+UPDATE tous_departements
+SET code_dept = substr(code_dept||code_chf,1,3)
+WHERE code_dept = '97';
+ 
+UPDATE tous_departements
+SET code_dept = '976'
+WHERE code_dept = '985' AND nom_dept = 'MAYOTTE';
+Ajout d'une enveloppe Saint-Pierre-et-Miquelon
+
+INSERT INTO tous_departements(wkb_geometry,
+                code_dept,
+                nom_dept)
+            VALUES(ST_Multi(ST_GeomFromText('POLYGON((-56.07 46.73,-56.45 46.73,-56.45 47.16,-56.16 47.16,-56.07 46.73))',4326)),
+            975,
+            'SAINT-PIERRE-ET-MIQUELON');
+ 
+* Géometrie élargie pour les DOM (pour garantir le recouvrement des POIs sur le littoral)
+
+ALTER TABLE tous_departements ADD COLUMN geom_buffer_01_dom geometry;
+UPDATE tous_departements
+SET geom_buffer_01_dom = wkb_geometry;
+UPDATE tous_departements
+SET geom_buffer_01_dom = ST_Buffer(geom_buffer_01_dom,0.1)
+WHERE code_dept like '97%';
+SELECT Populate_Geometry_Columns('tous_departements'::regclass);
