@@ -1,26 +1,26 @@
-# Code de l'outil PlaceMaker "Bureaux de poste"
-# Vincent de Ch‚teau-Thierry 02/10/2012
+Ôªø# Code de l'outil PlaceMaker "Bureaux de poste"
+# Vincent de Ch√¢teau-Thierry 02/10/2012
 # vdct at laposte point net
 
 # Licence
 Tous les bouts de code disponibles dans le repository https://github.com/vdct/PlaceMaker
-sont placÈs sous la licence "beerware" (http://fr.wikipedia.org/wiki/Beerware)
+sont plac√©s sous la licence "beerware" (http://fr.wikipedia.org/wiki/Beerware)
 
 # Organisation des fichiers
-Les rÈpertoires requis pour faire fonctionner le site sont
-- php : fonctions appelÈes depuis la page web, accËs aux donnÈes en base 
-- js : jquery (appelÈ par index.html)
-- data : fichier json de dÈfinition des emprises dÈpartementales
+Les r√©pertoires requis pour faire fonctionner le site sont
+- php : fonctions appel√©es depuis la page web, acc√®s aux donn√©es en base 
+- js : jquery (appel√© par index.html)
+- data : fichier json de d√©finition des emprises d√©partementales
 - lib : arborescence OpenLayers
 ainsi que le fichier index.html
 
-Autres rÈpertoires :
+Autres r√©pertoires :
 
-- config/osm2pgsql : selection des champs importÈs lors de la mise ‡ jour des donnÈes OSM ‡ partir d'extracts Geofabrik
+- config/osm2pgsql : selection des champs import√©s lors de la mise √† jour des donn√©es OSM √† partir d'extracts Geofabrik
 
 - sql :
--- dÈfinition de la structure de la BD Postgres qui interagit avec le code php
--- workflow de la couche de dÈpartements GeoFLA pour croisement avec les donnÈes de La Poste
--- construction de la table osm_post_office lors de la mise ‡ jour des donnÈes OSM issues de l'intÈgration
+-- d√©finition de la structure de la BD Postgres qui interagit avec le code php
+-- workflow de la couche de d√©partements GeoFLA pour croisement avec les donn√©es de La Poste
+-- construction de la table osm_post_office lors de la mise √† jour des donn√©es OSM issues de l'int√©gration
 
-- sh : workflow de mise ‡ jour du contenu OSM et du contenu rÈfÈrentiel
+- sh : workflow de mise √† jour du contenu OSM et du contenu r√©f√©rentiel
