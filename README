@@ -1,0 +1,26 @@
+# Code de l'outil PlaceMaker "Bureaux de poste"
+# Vincent de Château-Thierry 02/10/2012
+# vdct at laposte point net
+
+# Licence
+Tous les bouts de code disponibles dans le repository https://github.com/vdct/PlaceMaker
+sont placés sous la licence "beerware" (http://fr.wikipedia.org/wiki/Beerware)
+
+# Organisation des fichiers
+Les répertoires requis pour faire fonctionner le site sont
+- php : fonctions appelées depuis la page web, accès aux données en base 
+- js : jquery (appelé par index.html)
+- data : fichier json de définition des emprises départementales
+- lib : arborescence OpenLayers
+ainsi que le fichier index.html
+
+Autres répertoires :
+
+- config/osm2pgsql : selection des champs importés lors de la mise à jour des données OSM à partir d'extracts Geofabrik
+
+- sql :
+-- définition de la structure de la BD Postgres qui interagit avec le code php
+-- workflow de la couche de départements GeoFLA pour croisement avec les données de La Poste
+-- construction de la table osm_post_office lors de la mise à jour des données OSM issues de l'intégration
+
+- sh : workflow de mise à jour du contenu OSM et du contenu référentiel
