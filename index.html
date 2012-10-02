@@ -1,0 +1,409 @@
+﻿<!DOCTYPE html>
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <title>Place Maker : points de contact du réseau postal français</title>
+        <script src="lib/OpenLayers.js"></script>
+        <link rel="stylesheet" href="lib/style.css" type="text/css">
+        <script src="js/jquery-1.7.1.min.js"></script>
+        <script src="data/emprise_depts.js"></script>
+        <script type="text/javascript">
+            var map;
+	           var myStyles = new OpenLayers.StyleMap(
+		            		{"default": new OpenLayers.Style(
+		            				{strokeColor: "#0000cc",
+		                    strokeWidth: 5
+		                })
+		            });
+
+            function init(){
+                map = new OpenLayers.Map('map',{displayProjection: new OpenLayers.Projection("EPSG:4326")});
+                
+                var wms = new OpenLayers.Layer.OSM();
+                var distlayer = new OpenLayers.Layer.Vector("Écarts de géocodage entre La Poste et OSM", {
+                		styleMap: myStyles,
+                    strategies: [new OpenLayers.Strategy.BBOX({resFactor: 0.8})],
+                    protocol: new OpenLayers.Protocol.HTTP({
+                        url: "php/getGeoJSON_distance.php?mode=postOffice&dept=-1",
+                        format: new OpenLayers.Format.GeoJSON()
+                    })
+                });
+
+                map.addLayers([wms,distlayer]);
+		            map.addControl(new OpenLayers.Control.LayerSwitcher());
+            		map.addControl(new OpenLayers.Control.MousePosition({
+                    prefix: '',
+                    separator: ' ',
+                    numDigits: 4,
+                    emptyString: ''
+                }));
+                
+								bounds = new OpenLayers.Bounds();
+								bounds.extend(new OpenLayers.LonLat(-4,40));
+								bounds.extend(new OpenLayers.LonLat(10,52));
+								bounds.transform(new OpenLayers.Projection("EPSG:4326"),map.getProjectionObject());
+								map.zoomToExtent(bounds);
+
+               	$('<h4>').appendTo($('#depts_avec'))
+                						.append("Postes");
+               	$('<h6 />').appendTo($('#depts_avec'))
+                						.append("Cliquer sur un n° de département :");
+                for (du in liste_depts_emprise){
+                	$('<div />').appendTo($('#depts_avec'))
+                						.addClass("pave_dept avec_rel")
+                						.attr("id",du)
+                						.attr("title",liste_depts_emprise[du][4])
+                						.click(function(){switchlayer(this,'postes');})
+                						.append(du);
+				}
+				updateGlobalStats();
+			}
+
+            // Needed only for interaction, not for the display.
+            function onPopupClose(evt) {
+                // 'this' is the popup.
+                var feature = this.feature;
+                if (feature.layer) { // The feature is not destroyed
+                    selectControl.unselect(feature);
+                } else { // After "moveend" or "refresh" events on POIs layer all 
+                         //     features have been destroyed by the Strategy.BBOX
+                    this.destroy();
+                }
+            }
+            function onFeatureSelect(evt) {
+                feature = evt.feature;
+                popup = new OpenLayers.Popup.FramedCloud("featurePopup",
+                                         feature.geometry.getBounds().getCenterLonLat(),
+                                         new OpenLayers.Size(100,100),
+                                         "<h2>"+feature.attributes.title + "</h2>" +
+                                         feature.attributes.description,
+                                         null, true, onPopupClose);
+                feature.popup = popup;
+                popup.feature = feature;
+                map.addPopup(popup, true);
+				$('<div>').appendTo($('.desc_main:last'))
+							.addClass('desc');
+				LonLat = feature.geometry.clone().transform(map.getProjectionObject(),new OpenLayers.Projection("EPSG:4326"));
+
+				var xmlhttp;
+				if (window.XMLHttpRequest){
+					xmlhttp=new XMLHttpRequest();
+				} else  {
+					xmlhttp=new ActiveXObject("Microsoft.XMLHTTP");
+				}
+				xmlhttp.onreadystatechange=function(){
+					if (xmlhttp.readyState==4 && xmlhttp.status==200){
+						resp = xmlhttp.responseText;
+						a_resp = resp.split(';');
+						champs = a_resp[0].split(',');
+						vals = a_resp[1].split('#');
+						array_resp = new Array();
+						for (i=0;i<champs.length;i++){
+							array_resp[champs[i]] = vals[i];
+						}
+						
+						for (i=0;i<champs.length;i++){
+							if (vals[i] && vals[i] != 'null' && vals[i] != 'N'){
+//							if (vals[i] != 'null' && vals[i] != 'N'){
+								$('<p>').appendTo($('.desc:last'))
+										.append($('<span>').addClass('nom_champ')
+															.append(champs[i]+" : "))
+										.append($('<span>').addClass('val_champ')
+															.append(vals[i]));
+							}
+						}
+						if (array_resp["code_dept"] != (array_resp["code_postal"]).substr(0,array_resp["code_dept"].length)
+							&& !(array_resp["code_dept"] == '2A' && array_resp["code_postal"].substr(0,2) === '20')
+							&& !(array_resp["code_dept"] == '2B' && array_resp["code_postal"].substr(0,2) === '20')
+							&& $('.desc_main:last').attr('source') == 'source'){
+							alert("Attention : vérifier le positionnement\nLe début du code postal ne correspond pas au département");
+						}
+					}
+				}
+				xmlhttp.open("GET","php/getDetails.php?mode=postOffice"+"&id="+$('.desc_main:last').attr('id'),true);
+				xmlhttp.send();
+				if ($('.desc_main:last').attr('source') == 'osm'){
+					$('<p>').appendTo($('.desc_main:last'))
+									.append('Éditer la zone avec JOSM')
+									.addClass('lien_edition editer')
+									.click(function(){
+										bboxOffset = 0.001;
+										srcLoadAndZoom = "http://127.0.0.1:8111/load_and_zoom?left="+(LonLat.x - (bboxOffset*1.5))
+																									+"&right="+(LonLat.x + (bboxOffset*1.5))
+																									+"&bottom="+(LonLat.y - bboxOffset)
+																									+"&top="+(LonLat.y + bboxOffset);
+										$('<img>').appendTo($('#josm_links'))
+													.attr('src',srcLoadAndZoom);
+													})
+					$('<a>').appendTo($('.desc_main:last'))
+									.append('Éditer la zone avec Potlatch 2')
+									.addClass('lien_edition editer')
+									.attr("href","http://www.openstreetmap.org/edit?editor=potlatch2&lat="+LonLat.y+"&lon="+LonLat.x+"&zoom=17");
+				}
+				if ($('.desc_main:last').attr('source') == 'source'){
+					$('<p>').appendTo($('.desc_main:last'))
+									.append('Éditer avec JOSM')
+									.addClass('lien_edition editer')
+									.click(function(){
+											var xmlhttp;
+											if (window.XMLHttpRequest){
+												xmlhttp=new XMLHttpRequest();
+											} else  {
+												xmlhttp=new ActiveXObject("Microsoft.XMLHTTP");
+											}
+											xmlhttp.onreadystatechange=function(){
+												if (xmlhttp.readyState==4 && xmlhttp.status==200){
+													resp = xmlhttp.responseXML;
+
+													nbh = resp.getElementsByTagName('nbh')[0].childNodes[0].nodeValue;
+													//osmURL = resp.getElementsByTagName('url')[0].childNodes[0].nodeValue;
+													r = true;
+													if (nbh != 0){
+														r = confirm("Objet déjà demandé par un autre contributeur. Éditer ?");
+													}
+													if (r){
+														bboxOffset = 0.003;
+														srcLoadAndZoom = "http://127.0.0.1:8111/load_and_zoom?left="+(LonLat.x - (bboxOffset*1.5))
+																											+"&right="+(LonLat.x + (bboxOffset*1.5))
+																											+"&bottom="+(LonLat.y - bboxOffset)
+																											+"&top="+(LonLat.y + bboxOffset);
+														srcNewNode = "http://localhost:8111/import?url=http://osm.vdct.free.fr/postes/php/importJOSM.php?mode=postOffice&id="+$('.desc_main:last').attr('id');
+														$('#josm_links').empty();
+														$('<img>').appendTo($('#josm_links'))
+																	.attr('src',srcLoadAndZoom);
+														$('<img>').appendTo($('#josm_links'))
+																	.attr('src',srcNewNode);
+													}
+												}
+											}
+											xmlhttp.open("GET","php/checkData.php?mode=postOffice"+"&id="+$('.desc_main:last').attr('id')+"&x="+LonLat.x+"&y="+LonLat.y,true);
+
+											xmlhttp.send();
+									})
+					$('<p>').appendTo($('.desc_main:last'))
+									.append('Changer le statut :');
+					$('<p>').appendTo($('.desc_main:last'))
+									.append('Importé')
+									.addClass('lien_edition importe')
+									.click(function(){
+											var xmlhttp;
+											if (window.XMLHttpRequest){
+												xmlhttp=new XMLHttpRequest();
+											} else  {
+												xmlhttp=new ActiveXObject("Microsoft.XMLHTTP");
+											}
+											xmlhttp.onreadystatechange=function(){
+												if (xmlhttp.readyState==4 && xmlhttp.status==200){
+													resp = xmlhttp.responseXML;
+
+													nbh = resp.getElementsByTagName('nbh')[0].childNodes[0].nodeValue;
+													osmURL = resp.getElementsByTagName('url')[0].childNodes[0].nodeValue;
+
+												}
+											}
+											xmlhttp.open("GET","php/marquerCommeTraite_v2.php?id="+$('.desc_main:last').attr('id')+"&categorie=postOffice&ref_statut=1",true);
+											xmlhttp.send();
+									})
+					$('<p>').appendTo($('.desc_main:last'))
+									.append('Fusionné avec un existant OSM')
+									.addClass('lien_edition importe')
+									.click(function(){
+											var xmlhttp;
+											if (window.XMLHttpRequest){
+												xmlhttp=new XMLHttpRequest();
+											} else  {
+												xmlhttp=new ActiveXObject("Microsoft.XMLHTTP");
+											}
+											xmlhttp.onreadystatechange=function(){
+												if (xmlhttp.readyState==4 && xmlhttp.status==200){
+													resp = xmlhttp.responseXML;
+
+													nbh = resp.getElementsByTagName('nbh')[0].childNodes[0].nodeValue;
+													osmURL = resp.getElementsByTagName('url')[0].childNodes[0].nodeValue;
+
+												}
+											}
+											xmlhttp.open("GET","php/marquerCommeTraite_v2.php?id="+$('.desc_main:last').attr('id')+"&categorie=postOffice&ref_statut=2",true);
+											xmlhttp.send();
+									})
+				}									
+			}
+            function onFeatureUnselect(evt) {
+                feature = evt.feature;
+                if (feature.popup) {
+                    popup.feature = null;
+                    map.removePopup(feature.popup);
+                    feature.popup.destroy();
+                    feature.popup = null;
+                }
+				
+            }
+            
+            function switchlayer(cell,cat){
+            	
+            		$('div.selected').removeClass('selected');
+            		$(cell).addClass('selected');
+								
+                var simplelayer = new OpenLayers.Layer.Vector("autres amenity=post_office", {
+                    strategies: [new OpenLayers.Strategy.BBOX({resFactor: 1.1})],
+                    protocol: new OpenLayers.Protocol.HTTP({
+                        url: "php/getSimpleTextLayer.php?mode=postOffice&dept="+cell.id,
+                        format: new OpenLayers.Format.Text()
+                    })
+                });
+                var distlayer = new OpenLayers.Layer.Vector("Écarts de géocodage entre La Poste et OSM", {
+                		styleMap: myStyles,
+                    strategies: [new OpenLayers.Strategy.BBOX({resFactor: 1.1})],
+                    protocol: new OpenLayers.Protocol.HTTP({
+                        url: "php/getGeoJSON_distance.php?mode=postOffice&dept="+cell.id,
+                        format: new OpenLayers.Format.GeoJSON()
+                    })
+                });
+
+								var layer = new OpenLayers.Layer.Vector("Points du réseau de La Poste", {
+                    strategies: [new OpenLayers.Strategy.BBOX({resFactor: 1.1})],
+                    protocol: new OpenLayers.Protocol.HTTP({
+                        url: "php/getTextLayer_v2.php?mode=postOffice&dept="+cell.id,
+                        format: new OpenLayers.Format.Text()
+                    })
+                });
+
+
+                if (map.getLayersByClass("OpenLayers.Layer.Vector")[0]){
+	                map.removeLayer(map.getLayersByClass("OpenLayers.Layer.Vector")[0]);  	
+	                map.removeControl(map.getControlsByClass("OpenLayers.Control.SelectFeature")[0]);
+	            }
+                if (map.getLayersByClass("OpenLayers.Layer.Vector")[0]){
+	                map.removeLayer(map.getLayersByClass("OpenLayers.Layer.Vector")[0]);
+							}
+                if (map.getLayersByClass("OpenLayers.Layer.Vector")[0]){
+	                map.removeLayer(map.getLayersByClass("OpenLayers.Layer.Vector")[0]);
+							}
+                map.addLayers([layer,simplelayer,distlayer]);  	
+				selectControl = new OpenLayers.Control.SelectFeature(layer);
+                map.addControl(selectControl);
+                selectControl.activate();
+                layer.events.on({
+                    'featureselected': onFeatureSelect,
+                    'featureunselected': onFeatureUnselect
+                });
+
+				if ($('#checkCadrageAuto:checked').length == 1){
+					bounds = new OpenLayers.Bounds();
+					bounds.extend(new OpenLayers.LonLat(liste_depts_emprise[cell.id][0],liste_depts_emprise[cell.id][1]));
+					bounds.extend(new OpenLayers.LonLat(liste_depts_emprise[cell.id][2],liste_depts_emprise[cell.id][3]));
+					map.zoomToExtent(bounds,false);
+				}
+				updateGlobalStats(cell.id);
+				$('#legende').show();
+            }
+			function updateGlobalStats(dept){
+				var xmlhttp;
+				if (window.XMLHttpRequest){
+					xmlhttp=new XMLHttpRequest();
+				} else  {
+					xmlhttp=new ActiveXObject("Microsoft.XMLHTTP");
+				}
+				xmlhttp.onreadystatechange=function(){
+					if (xmlhttp.readyState==4 && xmlhttp.status==200){
+						resp = xmlhttp.responseText;
+						a_resp = resp.split(',');
+						$('#map_stats:last').empty();
+						zone = '(France)';
+						if (a_resp[3]*1 != 99){
+							zone = "("+a_resp[3]+")";
+						}
+						$('<h4>').appendTo($('#map_stats:last'))
+								.append('Avancement '+zone+' :');
+						pluriel = '';
+						if ((a_resp[1]*1) >= 2){
+							pluriel = 's';
+						}							
+						$('<p>').appendTo($('#map_stats:last'))
+								.append(a_resp[1]+' point'+pluriel+' ajouté'+pluriel);
+						pluriel = '';
+						$('<p>').appendTo($('#map_stats:last'))
+								.append('sur un total de '+a_resp[2]+' points');
+						if (a_resp[1]*1 > 0){
+							$('<p>').appendTo($('#map_stats:last'))
+									.append('Distance moyenne :'+a_resp[4]+' m.');
+							$('<p>').appendTo($('#map_stats:last'))
+									.append('Distance max.: '+a_resp[5]+' m.');
+							$('#maj_osm:last').empty();
+						}
+						$('<h4>').appendTo($('#maj_osm:last'))
+								.append('Données OSM extraites le :');
+						$('#maj_osm:last').append(a_resp[0]);
+					}
+				}
+				xmlhttp.open("GET","php/getStats_v2.php?mode=postOffice&dept="+dept,true);
+				xmlhttp.send();
+							
+			}
+			
+			function updatePotlatchLink(){
+				CenterLonLat = map.getCenter().clone().transform(map.getProjectionObject(),new OpenLayers.Projection("EPSG:4326"));
+				$('#potlatch_link > a')[0].href='http://www.openstreetmap.org/edit?editor=potlatch2&lat='+CenterLonLat.lat+'&lon='+CenterLonLat.lon+'&zoom=17';
+			}
+      </script>
+      <script src="php/getStats.php?mode=postOffice"></script>  
+  </head>
+    <body onload="init()">
+        <h1 id="title" onclick="switchlayer();">OpenData : bureaux de poste</h1>
+        <div id="map" class="largemap">
+				</div>
+<!--
+        	<div id="potlatch_link" onMouseOver="updatePotlatchLink();"><a href="" >Editer avec Potlatch 2</a></div>
+-->
+        <div id="depts_main" class="depts_main">
+        	<div id="depts_avec" class="sub_postes_main" style="top:0px">
+			</div>
+        	<div id="map_options">
+			<h4> Options </h4>
+			<input id="checkCadrageAuto" type="checkbox" checked="checked"> Activer le cadrage par département </input>
+			<p style="font-weight:bold"><a href="http://wiki.openstreetmap.org/wiki/FR:PlaceMaker#Points_de_contact_du_r.C3.A9seau_postal_fran.C3.A7ais">Aide (wiki)</a></p>
+			</div>
+	       	<div class="dates">
+						<h4>Données sources</h4>
+						<p><a href="http://www.data.gouv.fr/donnees/view/Liste-des-points-de-contact-du-r%C3%A9seau-postal-fran%C3%A7ais-551640?xtmc=poste&xtcr=1">Liste des points de contact du réseau postal français</a></p>
+  	      </div>
+       	</div>
+        	<div id="map_stats"></div>
+			<div id="maj_osm"></div>
+        	<div id="legende" style="display:none">
+				<h4>Légende</h4>
+				<table>
+				<tr><td><img src="lib/img/marker.png"></td><td> Point à éditer</td></tr>
+				<tr><td><img src="lib/img/marker-gold.png"></td><td> Point déjà importé</td></tr>
+				<tr><td><img src="lib/img/marker-green.png"></td><td> Point déclaré importé après la m-à-j OSM</td></tr>
+				<tr><td><img src="lib/img/marker-blue-reverse.png"></td><td> "Post office" OSM sans identifiant de La Poste</td></tr>
+				</table>
+			</div>
+		<div style="width:800px">
+		<h2>Statut des points importés</h2>
+		<h4>"Importé"</h4>
+		<p>Le point a été importé et n'entre pas en concurrence avec un point existant dans OSM. Il est laissé comme point isolé, ou rattaché à un bâtiment.</p>
+		<h4>"Fusionné avec un existant OSM"</h4>
+		<p>Le point a été importé et entre en concurrence avec un point existant dans OSM. Les deux points ont été fusionnés en un seul, en gardant le meilleur positionnement et la somme des tags pertinents.</p>
+	
+		</div>
+		<div id="josm_links" style="display:none">Liens JOSM
+		</div>
+		<!-- phpmyvisites -->
+<a href="http://st.free.fr/" title="phpMyVisites | Open source web analytics"
+onclick="window.open(this.href);return(false);"><script type="text/javascript">
+<!--
+var a_vars = Array();
+var pagename='';
+
+var phpmyvisitesSite = 239508;
+var phpmyvisitesURL = "http://st.free.fr/phpmyvisites.php";
+//-->
+</script>
+<script language="javascript" src="http://st.free.fr/phpmyvisites.js" type="text/javascript"></script>
+<object><noscript></noscript></object></a>
+<!-- /phpmyvisites --> 
+    </body>
+</html>
